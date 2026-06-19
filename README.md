@@ -4,13 +4,14 @@ A simple Snake game built with Java Swing. Use the arrow keys to guide the snake
 
 ## Features
 
+- Main menu with start, tutorial, settings, and exit options
 - Classic grid-based Snake gameplay
 - Java Swing desktop window
-- Keyboard controls with arrow keys
+- Customizable keyboard controls
 - Score display
 - Food spawning that avoids the snake body
 - Game over detection for wall and self collisions
-- Restart with `Enter` or `Space`
+- Restart or return to the menu after Game Over
 - No external dependencies
 
 ## Project Structure
@@ -49,14 +50,19 @@ java -cp src SnakeGame
 
 ## Controls
 
+The default controls are:
+
 | Key | Action |
 | --- | --- |
 | Arrow Up | Move up |
 | Arrow Down | Move down |
 | Arrow Left | Move left |
 | Arrow Right | Move right |
-| Enter | Start or restart |
-| Space | Start or restart |
+| Enter | Confirm menu option |
+| Space | Confirm menu option |
+| Esc | Return to menu while playing |
+
+You can change the movement keys from the in-game settings menu.
 
 ## Game Rules
 
