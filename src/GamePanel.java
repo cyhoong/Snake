@@ -3,15 +3,22 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import javax.imageio.ImageIO;
 import javax.swing.JPanel;
 import javax.swing.Timer;
 
@@ -27,11 +34,23 @@ public class GamePanel extends JPanel {
     private static final int BUTTON_WIDTH = 240;
     private static final int BUTTON_HEIGHT = 42;
     private static final int BUTTON_GAP = 14;
+    private static final int EATING_ANIMATION_LAST_FRAME = 4;
+    private static final String[] IMAGE_EXTENSIONS = {"png", "jpg", "jpeg"};
 
     private final Random random = new Random();
     private final List<Point> snake = new ArrayList<>();
     private final Timer timer;
     private final List<MenuButton> activeButtons = new ArrayList<>();
+    private final BufferedImage snakeHeadImage = loadImage("SnakeHead");
+    private final BufferedImage snakeBodyImage = loadImage("SnakeBody");
+    private final BufferedImage snakeAppleImage = loadImage("SnakeApple");
+    private final BufferedImage[] eatingHeadImages = {
+        snakeHeadImage,
+        loadImage("SnakeHead2"),
+        loadImage("SnakeHead3"),
+        loadImage("SnakeHead4"),
+        snakeHeadImage
+    };
 
     private Screen screen = Screen.MENU;
     private Direction direction = Direction.RIGHT;
@@ -40,6 +59,8 @@ public class GamePanel extends JPanel {
     private Point food;
     private boolean running;
     private boolean gameOver;
+    private boolean eatingAnimationActive;
+    private int eatingAnimationFrame;
     private int score;
     private int selectedIndex;
     private String settingsMessage = "選擇一個方向後，按下新的控制鍵。";
@@ -58,8 +79,12 @@ public class GamePanel extends JPanel {
 
         timer = new Timer(DELAY, event -> {
             if (running) {
-                move();
-                checkCollision();
+                if (eatingAnimationActive) {
+                    updateEatingAnimation();
+                } else {
+                    move();
+                    checkCollision();
+                }
                 repaint();
             }
         });
@@ -129,6 +154,8 @@ public class GamePanel extends JPanel {
         nextDirection = Direction.RIGHT;
         score = 0;
         food = null;
+        eatingAnimationActive = false;
+        eatingAnimationFrame = 0;
     }
 
     private void move() {
@@ -157,10 +184,24 @@ public class GamePanel extends JPanel {
         snake.add(0, newHead);
 
         if (newHead.equals(food)) {
-            score += 10;
-            spawnFood();
+            startEatingAnimation();
         } else {
             snake.remove(snake.size() - 1);
+        }
+    }
+
+    private void startEatingAnimation() {
+        eatingAnimationActive = true;
+        eatingAnimationFrame = 0;
+    }
+
+    private void updateEatingAnimation() {
+        eatingAnimationFrame++;
+        if (eatingAnimationFrame >= EATING_ANIMATION_LAST_FRAME) {
+            eatingAnimationActive = false;
+            eatingAnimationFrame = 0;
+            score += 10;
+            spawnFood();
         }
     }
 
@@ -312,10 +353,14 @@ public class GamePanel extends JPanel {
             return;
         }
 
-        g.setColor(new Color(230, 65, 65));
         int x = food.x * CELL_SIZE;
         int y = food.y * CELL_SIZE + SCORE_BAR_HEIGHT;
-        g.fillOval(x + 3, y + 3, CELL_SIZE - 6, CELL_SIZE - 6);
+        if (snakeAppleImage != null) {
+            drawCellImage(g, snakeAppleImage, x, y);
+        } else {
+            g.setColor(new Color(230, 65, 65));
+            g.fillOval(x + 3, y + 3, CELL_SIZE - 6, CELL_SIZE - 6);
+        }
     }
 
     private void drawSnake(Graphics g) {
@@ -325,11 +370,82 @@ public class GamePanel extends JPanel {
             int y = part.y * CELL_SIZE + SCORE_BAR_HEIGHT;
 
             if (i == 0) {
+                Image headImage = currentHeadImage();
+                if (headImage != null) {
+                    drawHeadImage(g, headImage, x, y);
+                    continue;
+                }
                 g.setColor(new Color(100, 235, 120));
             } else {
+                if (snakeBodyImage != null) {
+                    drawCellImage(g, snakeBodyImage, x, y);
+                    continue;
+                }
                 g.setColor(new Color(45, 180, 85));
             }
             g.fillRoundRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2, 6, 6);
+        }
+    }
+
+    private Image currentHeadImage() {
+        if (!eatingAnimationActive) {
+            return snakeHeadImage;
+        }
+        return eatingHeadImages[eatingAnimationFrame];
+    }
+
+    private void drawCellImage(Graphics g, Image image, int x, int y) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g2.drawImage(image, x, y, CELL_SIZE, CELL_SIZE, null);
+        g2.dispose();
+    }
+
+    private void drawHeadImage(Graphics g, Image image, int x, int y) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g2.rotate(rotationAngle(direction), x + CELL_SIZE / 2.0, y + CELL_SIZE / 2.0);
+        g2.drawImage(image, x, y, CELL_SIZE, CELL_SIZE, null);
+        g2.dispose();
+    }
+
+    private double rotationAngle(Direction imageDirection) {
+        switch (imageDirection) {
+            case UP:
+                return -Math.PI / 2;
+            case DOWN:
+                return Math.PI / 2;
+            case LEFT:
+                return Math.PI;
+            case RIGHT:
+            default:
+                return 0;
+        }
+    }
+
+    private BufferedImage loadImage(String imageName) {
+        for (String extension : IMAGE_EXTENSIONS) {
+            BufferedImage image = loadImageFile(imageName + "." + extension);
+            if (image != null) {
+                return image;
+            }
+        }
+        return null;
+    }
+
+    private BufferedImage loadImageFile(String fileName) {
+        File imageFile = new File(fileName);
+        if (!imageFile.isFile()) {
+            return null;
+        }
+
+        try {
+            return ImageIO.read(imageFile);
+        } catch (IOException exception) {
+            System.err.println("無法載入圖片：" + fileName);
+            return null;
         }
     }
 
